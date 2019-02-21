@@ -1,0 +1,23 @@
+{
+   "bucket": "bucket",
+   "clusters": {
+      "cluster1": {
+         "address": "http://localhost:9200",
+         "rollover_conditions": {
+            "max_age": "7d",
+            "max_docs": 1000,
+            "max_size": "5gb"
+         },
+         "indices_to_keep": 5
+      },
+      "cluster2": {
+         "address": "http://localhost:9201",
+         "rollover_conditions": {
+            "max_age": "7d",
+            "max_docs": 1000,
+            "max_size": "5gb"
+         },
+         "indices_to_keep": 5
+      }
+   }
+}
