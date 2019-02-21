@@ -74,8 +74,9 @@ def createSnapshots(es, repository):
     nonAliasedIndices.filter_by_regex(kind="prefix", value=".monitoring-", exclude=True)
     for index in nonAliasedIndices.indices:
         try:
-            snapshot = client.snapshot.get(repository=repository, snapshot=index)
+            snapshot = es.snapshot.get(repository=repository, snapshot=index)
             if snapshot["state"] == "FAILED":
+                pass
                 #notify
         except:
             es.snapshot.create(
@@ -85,17 +86,21 @@ def createSnapshots(es, repository):
 
 
 def deleteIndices(es, keep):
-    aliases = getAllAliases(es)
-    for alias in aliases:
-        indices = curator.IndexList(es)
-        pattern = "^%s-(.*)" % (alias)
-        indices.filter_by_count(
-            count=keep,
-            reverse=True,
-            use_age=True,
-            pattern=pattern,
-            source='creation_date')
-        curator.DeleteIndices(indices)
+    indices = curator.IndexList(es)
+    snapshots = indices.indices
+    indices.filter_by_count(
+        count=keep,
+        reverse=True,
+        pattern="^(.*)-\d{8}.*$")
+    for snap in snapshots:
+        try:
+            snapshot = es.snapshot.get(repository=repository, snapshot=snap)
+            if snapshot["state"] != "SUCCESS":
+                indices.filter_by_regex(kind="prefix", value=snap, exclude=True)
+        except:
+            indices.filter_by_regex(kind="prefix", value=snap, exclude=True)
+    curator.DeleteIndices(indices)
+
 
 
 def handler(event, context):
