@@ -6,7 +6,7 @@ script:
   - mkdir build
   - pip install -r requirements.txt -t build/
   - cp serverless-es-rollover.py logging.ini -t build/
-  - cd build && zip -r ../build ${TRAVIS_TAG}.zip *
+  - cd build && zip -r ../build-${TRAVIS_TAG}.zip *
 
 deploy:
   provider: releases
