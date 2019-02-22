@@ -36,8 +36,9 @@ def getAllAliases(es):
 
 
 def rolloverCluster(es, conditions):
-    newIndex = "%s-%s" % (alias, datetime.now().strftime("%Y%m%d"))
+    suffix = datetime.now().strftime("%Y%m%d")
     for alias in getAllAliases(es):
+        newIndex = "%s-%s" % (alias, suffix)
         rolloverIndices = curator.Rollover(es, alias, conditions, new_index=newIndex)
         rolloverIndices.do_action()
 
