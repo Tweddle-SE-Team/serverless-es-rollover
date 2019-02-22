@@ -1,9 +1,11 @@
 from __future__ import print_function
+import boto3
 import os
 import certifi
 import curator
 import json
 import time
+import botocore.session
 from curator.exceptions import NoIndices
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
@@ -34,33 +36,50 @@ def getAllAliases(es):
 
 
 def rolloverCluster(es, conditions):
-    newIndex = datetime.now().strftime("%Y%m%d")
+    newIndex = "%s-%s" % (alias, datetime.now().strftime("%Y%m%d"))
     for alias in getAllAliases(es):
-        curator.Rollover(es, alias, conditions, new_index=newIndex)
+        rolloverIndices = curator.Rollover(es, alias, conditions, new_index=newIndex)
+        rolloverIndices.do_action()
 
 
-def getRoleARN(region):
+
+def credentials(region):
     sts = boto3.client('sts', region)
-    return "/".join(sts.get_caller_identity()['Arn']
-                    .replace(":sts:", ":iam:")
-                    .replace("assumed-role", "role")
-                    .split("/")[:-1])
+    arn = sts.get_caller_identity()['Arn']
+    if "sts" in arn:
+        return {"role_arn": "/".join(sts.get_caller_identity()['Arn']
+                                    .replace(":sts:", ":iam:")
+                                    .replace("assumed-role", "role")
+                                    .split("/")[:-1]),
+                "region": region}
+    else:
+        session = botocore.session.get_session()
+        return {
+            "endpoint": "http://10.5.0.6:9000",
+            "protocol": "http"}
+
+
+def getAllRepositories(es):
+    catRepositories = es.cat.repositories(format="json")
+    return [repo['id'] for repo in catRepositories]
+
+
+def getAllSnapshots(es, repository):
+    catSnapshots = es.cat.snapshots(repository=repository, format="json")
+    return [snapshot['id'] for snapshot in catSnapshots]
 
 
 def createRepository(es, repository, bucket, region=None):
     if not region:
         region = os.getenv('AWS_DEFAULT_REGION')
-    try:
-        es.snapshot.get_repository(repository=repository)
-    except:
+    if repository not in getAllRepositories(es):
         es.snapshot.create_repository(
             repository=repository,
             body={
                 "type": "s3",
                 "settings": {
-                    "region": region,
                     "bucket": bucket,
-                    "role_arn": getRoleARN(region)
+                    **credentials(region)
                 }
             },
             request_timeout=30,
@@ -70,22 +89,32 @@ def createRepository(es, repository, bucket, region=None):
 def createSnapshots(es, repository):
     nonAliasedIndices = curator.IndexList(es)
     aliases = getAllAliases(es)
-    nonAliasedIndices.filter_by_alias(aliases=aliases, exclude=True)
-    nonAliasedIndices.filter_by_regex(kind="prefix", value=".monitoring-", exclude=True)
-    for index in nonAliasedIndices.indices:
-        try:
-            snapshot = es.snapshot.get(repository=repository, snapshot=index)
-            if snapshot["state"] == "FAILED":
-                pass
-                #notify
-        except:
-            es.snapshot.create(
-                repository=repository,
-                snapshot=index,
-                wait_for_completion=False)
+    if aliases:
+        nonAliasedIndices.filter_by_alias(aliases=aliases, exclude=True)
+        nonAliasedIndices.filter_by_regex(kind="prefix", value=".monitoring-", exclude=True)
+        for index in nonAliasedIndices.indices:
+            if repository in getAllRepositories(es):
+                if index in getAllSnapshots(es, repository):
+                    snapshots = es.snapshot.get(repository=repository, snapshot=index)
+                    for snapshot in snapshots["snapshots"]:
+                        if snapshot["state"] == "FAILED":
+                            pass
+                            #notify
+                else:
+                    es.snapshot.create(
+                        repository=repository,
+                        snapshot=index,
+                        body={
+                            "indices": index,
+                            "include_global_state": False
+                        },
+                        wait_for_completion=False)
+    else:
+        pass
+        # no aliases found
 
 
-def deleteIndices(es, keep):
+def deleteIndices(es, keep, repository):
     indices = curator.IndexList(es)
     snapshots = indices.indices
     indices.filter_by_count(
@@ -93,13 +122,14 @@ def deleteIndices(es, keep):
         reverse=True,
         pattern="^(.*)-\d{8}.*$")
     for snap in snapshots:
-        try:
-            snapshot = es.snapshot.get(repository=repository, snapshot=snap)
+        if snap in getAllSnapshots(es, repository):
+            snapshot = es.snapshot.get(repository=repository, snapshot=snap)["snapshots"][0]
             if snapshot["state"] != "SUCCESS":
                 indices.filter_by_regex(kind="prefix", value=snap, exclude=True)
-        except:
+        else:
             indices.filter_by_regex(kind="prefix", value=snap, exclude=True)
-    curator.DeleteIndices(indices)
+    deleteIndices = curator.DeleteIndices(indices)
+    deleteIndices.do_action()
 
 
 
@@ -110,11 +140,16 @@ def handler(event, context):
     else:
         config = json.loads(configJson)
         bucket = config["bucket"]
-    for cluster in config["clusters"]:
-        clusterConfig = config[cluster]
+        clusters = config["clusters"]
+    for cluster in clusters:
+        clusterConfig = clusters[cluster]
         address = clusterConfig["address"]
         es = getESClient(address)
         rolloverCluster(es, clusterConfig["rollover_conditions"])
         createRepository(es, repository=cluster, bucket=bucket)
         createSnapshots(es, repository=cluster)
-        deleteIndices(es, keep=clusterConfig["indices_to_keep"])
+        deleteIndices(es, repository=cluster, keep=clusterConfig["indices_to_keep"])
+
+
+if __name__ == "__main__":
+    handler(None, None)

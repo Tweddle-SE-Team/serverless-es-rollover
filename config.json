@@ -1,0 +1,12 @@
+{
+   "bucket": "backups",
+   "clusters": {
+      "cluster1": {
+         "address": "http://localhost:9200",
+         "rollover_conditions": {
+            "max_age": "10m"
+         },
+         "indices_to_keep": 2
+      }
+   }
+}

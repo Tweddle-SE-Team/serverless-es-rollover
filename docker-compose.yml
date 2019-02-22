@@ -1,0 +1,45 @@
+version: "2.2"
+
+services:
+  elasticsearch:
+    build: .
+    ports:
+      - 9200:9200
+    environment:
+      bootstrap.memory_lock: "true"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      xpack.security.enabled: "false"
+      network.host: 0.0.0.0
+      transport.host: 127.0.0.1
+      http.host: 0.0.0.0
+      s3.client.default.endpoint: http://10.5.0.6:9000
+      s3.client.default.protocol: http
+    networks:
+      vpcbr:
+        ipv4_address: 10.5.0.5
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+  s3:
+    image: minio/minio
+    entrypoint: sh
+    command: -c "mkdir -p /data/backups && /usr/bin/minio server --address 0.0.0.0:9000 /data"
+    environment:
+      MINIO_ACCESS_KEY: dummydummy
+      MINIO_SECRET_KEY: dummydummy
+      MINIO_HTTP_TRACE: /dev/stdout
+    restart: always
+    ports:
+      - 9000:9000
+    networks:
+      vpcbr:
+        ipv4_address: 10.5.0.6
+
+networks:
+    vpcbr:
+        driver: bridge
+        ipam:
+          config:
+            - subnet: 10.5.0.0/16
+              gateway: 10.5.0.1
