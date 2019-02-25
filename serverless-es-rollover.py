@@ -107,29 +107,32 @@ def createSnapshots(es, repository):
     aliases = getAllAliases(es)
     if aliases:
         nonAliasedIndices.filter_by_alias(aliases=aliases, exclude=True)
-        nonAliasedIndices.filter_by_regex(kind="prefix", value=".monitoring-", exclude=True)
-        for index in nonAliasedIndices.indices:
-            if repository in getAllRepositories(es):
-                if index in getAllSnapshots(es, repository):
-                    logger.info("Found %s snapshot" % (index))
-                    snapshots = es.snapshot.get(repository=repository, snapshot=index)
-                    for snapshot in snapshots["snapshots"]:
-                        if snapshot["state"] == "FAILED":
-                            logger.info("Snapshot %s is in a failed state" % (index))
-                        else:
-                            logger.debug("Snapshot %s is in %s state" % (index, snapshot["state"]))
+        if nonAliasedIndices.indices:
+            nonAliasedIndices.filter_by_regex(kind="prefix", value=".monitoring-", exclude=True)
+            for index in nonAliasedIndices.indices:
+                if repository in getAllRepositories(es):
+                    if index in getAllSnapshots(es, repository):
+                        logger.info("Found %s snapshot" % (index))
+                        snapshots = es.snapshot.get(repository=repository, snapshot=index)
+                        for snapshot in snapshots["snapshots"]:
+                            if snapshot["state"] == "FAILED":
+                                logger.info("Snapshot %s is in a failed state" % (index))
+                            else:
+                                logger.debug("Snapshot %s is in %s state" % (index, snapshot["state"]))
+                    else:
+                        es.snapshot.create(
+                            repository=repository,
+                            snapshot=index,
+                            body={
+                                "indices": index,
+                                "include_global_state": False
+                            },
+                            wait_for_completion=False)
+                        logger.info("Created %s snapshot" % (index))
                 else:
-                    es.snapshot.create(
-                        repository=repository,
-                        snapshot=index,
-                        body={
-                            "indices": index,
-                            "include_global_state": False
-                        },
-                        wait_for_completion=False)
-                    logger.info("Created %s snapshot" % (index))
-            else:
-                logger.error("Repository %s is not found" % (repository))
+                    logger.error("Repository %s is not found" % (repository))
+        else:
+            logger.info("No non-aliased indices found")
     else:
         logger.info("No aliases found")
 
