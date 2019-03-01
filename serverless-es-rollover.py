@@ -93,6 +93,7 @@ def createRepository(es, repository, bucket, region=None):
                 "type": "s3",
                 "settings": {
                     "bucket": bucket,
+                    "base_path": repository,
                     **credentials(region)
                 }
             },
