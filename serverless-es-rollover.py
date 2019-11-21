@@ -34,14 +34,16 @@ def getESClient(address, region=None):
     return Elasticsearch(address, http_auth=awsAuth, connection_class=RequestsHttpConnection)
 
 
-def getAllAliases(es):
-    catAliases = es.cat.aliases(format="json")
-    return [alias['alias'] for alias in catAliases]
+def getAllAliases(es, exclude=[]):
+    allAliases = es.cat.aliases(format="json")
+    for alias in allAliases:
+        if not alias['alias'] in exclude:
+            yield alias['alias']
 
 
-def rolloverCluster(es, conditions):
+def rolloverCluster(es, conditions, excludeAliases):
     suffix = datetime.now().strftime("%Y%m%d")
-    for alias in getAllAliases(es):
+    for alias in getAllAliases(es, excludeAliases):
         newIndex = "%s-%s" % (alias, suffix)
         if newIndex in curator.IndexList(es).indices:
             logger.error("Index with name %s already exists. Check you rollover conditions or update naming" % (newIndex))
@@ -103,9 +105,9 @@ def createRepository(es, repository, bucket, region=None):
         logger.info("Repository %s already exists" % (repository))
 
 
-def createSnapshots(es, repository):
+def createSnapshots(es, repository, excludeAliases):
     nonAliasedIndices = curator.IndexList(es)
-    aliases = getAllAliases(es)
+    aliases = getAllAliases(es, excludeAliases)
     if aliases:
         nonAliasedIndices.filter_by_alias(aliases=aliases, exclude=True)
         if nonAliasedIndices.indices:
@@ -175,9 +177,9 @@ def handler(event, context):
         clusterConfig = clusters[cluster]
         address = clusterConfig["address"]
         es = getESClient(address)
-        rolloverCluster(es, clusterConfig["rollover_conditions"])
+        rolloverCluster(es, clusterConfig["rollover_conditions"], clusterConfig["exclude_aliases"])
         createRepository(es, repository=cluster, bucket=bucket)
-        createSnapshots(es, repository=cluster)
+        createSnapshots(es, repository=cluster, clusterConfig["exclude_aliases"])
         deleteIndices(es, repository=cluster, keep=clusterConfig["indices_to_keep"])
 
 

@@ -6,7 +6,8 @@
          "rollover_conditions": {
             "max_age": "10m"
          },
-         "indices_to_keep": 2
+         "indices_to_keep": 2,
+         "exclude_aliases": ["alias1"]
       }
    }
 }
