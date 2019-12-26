@@ -178,9 +178,9 @@ def handler(event, context):
         address = clusterConfig["address"]
         es = getESClient(address)
         rolloverCluster(es, clusterConfig["rollover_conditions"], clusterConfig["exclude_aliases"])
-        createRepository(es, repository=cluster, bucket=bucket)
-        createSnapshots(es, repository=cluster, clusterConfig["exclude_aliases"])
-        deleteIndices(es, repository=cluster, keep=clusterConfig["indices_to_keep"])
+        createRepository(es, cluster, bucket)
+        createSnapshots(es, cluster, clusterConfig["exclude_aliases"])
+        deleteIndices(es, cluster, clusterConfig["indices_to_keep"])
 
 
 if __name__ == "__main__":
