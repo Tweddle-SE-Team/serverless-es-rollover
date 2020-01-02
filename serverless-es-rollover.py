@@ -107,7 +107,7 @@ def createRepository(es, repository, bucket, region=None):
 
 def createSnapshots(es, repository, excludeAliases):
     nonAliasedIndices = curator.IndexList(es)
-    aliases = getAllAliases(es, excludeAliases)
+    aliases = [getAllAliases(es, excludeAliases)]
     if aliases:
         nonAliasedIndices.filter_by_alias(aliases=aliases, exclude=True)
         if nonAliasedIndices.indices:
