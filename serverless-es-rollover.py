@@ -44,14 +44,14 @@ def getAllAliases(es, exclude=[]):
 def rolloverCluster(es, conditions, excludeAliases):
     suffix = datetime.now().strftime("%Y%m%d")
     for alias in getAllAliases(es, excludeAliases):
-        newIndex = "%s-%s" % (alias, suffix)
+        newIndex = f"{alias}-{suffix}"
         if newIndex in curator.IndexList(es).indices:
-            logger.error("Index with name %s already exists. Check you rollover conditions or update naming" % (newIndex))
+            logger.error(f"Index with name {newIndex} already exists. Check you rollover conditions or update naming")
         else:
-            logger.info("Performing rollover of %s to a new index %s" % (alias, newIndex))
+            logger.info(f"Performing rollover of {alias} to a new index {newIndex}")
             rolloverIndices = curator.Rollover(es, alias, conditions, new_index=newIndex)
             rolloverIndices.do_action()
-            logger.info("Rollover of %s succeeded" % (alias))
+            logger.info(f"Rollover of {alias} succeeded")
 
 
 
@@ -63,7 +63,7 @@ def credentials(region):
                             .replace(":sts:", ":iam:")
                             .replace("assumed-role", "role")
                             .split("/")[:-1])
-        logger.info("Got AWS Role ARN for backups: %s" % (roleARN))
+        logger.info(f"Got AWS Role ARN for backups: {roleARN}")
         return {
             "role_arn": roleARN,
             "region": region}
@@ -102,7 +102,7 @@ def createRepository(es, repository, bucket, region=None):
             request_timeout=30,
             verify=True)
     else:
-        logger.info("Repository %s already exists" % (repository))
+        logger.info(f"Repository {repository} already exists")
 
 
 def createSnapshots(es, repository, excludeAliases):
@@ -115,13 +115,13 @@ def createSnapshots(es, repository, excludeAliases):
             for index in nonAliasedIndices.indices:
                 if repository in getAllRepositories(es):
                     if index in getAllSnapshots(es, repository):
-                        logger.info("Found %s snapshot" % (index))
+                        logger.info(f"Found {index} snapshot")
                         snapshots = es.snapshot.get(repository=repository, snapshot=index)
                         for snapshot in snapshots["snapshots"]:
                             if snapshot["state"] == "FAILED":
-                                logger.info("Snapshot %s is in a failed state" % (index))
+                                logger.info(f"Snapshot {index} is in a failed state")
                             else:
-                                logger.debug("Snapshot %s is in %s state" % (index, snapshot["state"]))
+                                logger.debug(f"Snapshot {index} is in {snapshot['state']} state")
                     else:
                         es.snapshot.create(
                             repository=repository,
@@ -131,16 +131,16 @@ def createSnapshots(es, repository, excludeAliases):
                                 "include_global_state": False
                             },
                             wait_for_completion=False)
-                        logger.info("Created %s snapshot" % (index))
+                        logger.info(f"Created {index} snapshot")
                 else:
-                    logger.error("Repository %s is not found" % (repository))
+                    logger.error(f"Repository {repository} is not found")
         else:
             logger.info("No non-aliased indices found")
     else:
         logger.info("No aliases found")
 
 
-def deleteIndices(es, keep, repository):
+def deleteIndices(es, repository, keep):
     indices = curator.IndexList(es)
     snapshots = indices.indices
     try:
@@ -153,9 +153,9 @@ def deleteIndices(es, keep, repository):
                 snapshot = es.snapshot.get(repository=repository, snapshot=snap)["snapshots"][0]
                 if snapshot["state"] != "SUCCESS":
                     indices.filter_by_regex(kind="prefix", value=snap, exclude=True)
-                    logger.info("Snapshot %s is not ready. It is in %s state" % (snap, snapshot["state"]))
+                    logger.info(f"Snapshot {snap} is not ready. It is in {snapshot['state']} state")
                 else:
-                    logger.info("Snapshot %s already exists" % (snap))
+                    logger.info(f"Snapshot {snap} already exists")
             else:
                 indices.filter_by_regex(kind="prefix", value=snap, exclude=True)
         deleteIndices = curator.DeleteIndices(indices)
