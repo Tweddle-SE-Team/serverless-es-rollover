@@ -7,7 +7,7 @@
             "max_age": "10m"
          },
          "indices_to_keep": 2,
-         "exclude_aliases": ["alias1"]
+         "exclude_aliases": ["assets", "logs"]
       }
    }
 }
