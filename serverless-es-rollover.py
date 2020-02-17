@@ -6,7 +6,7 @@ import logging
 import botocore.session
 from logging.config import fileConfig
 from curator.exceptions import NoIndices
-from elasticsearch import Elasticsearch, RequestsHttpConnection
+from elasticsearch import Elasticsearch, RequestsHttpConnection, NotFoundError
 from requests_aws4auth import AWS4Auth
 from datetime import datetime
 
@@ -44,7 +44,7 @@ def getAllAliases(es, exclude=[]):
 def rolloverCluster(es, conditions, excludeAliases):
     suffix = datetime.now().strftime("%Y%m%d")
     for alias in getAllAliases(es, excludeAliases):
-        newIndex = f"{alias}-{suffix}"
+        newIndex = f"{alias}-{suffix}-1"
         if newIndex in curator.IndexList(es).indices:
             logger.error(f"Index with name {newIndex} already exists. Check you rollover conditions or update naming")
         else:
@@ -54,14 +54,16 @@ def rolloverCluster(es, conditions, excludeAliases):
                 new_index=newIndex,
                 body={
                     'conditions': conditions,
-                    'mappings': getIndex(alias)['mappings']
+                    'mappings': getIndex(es, alias)['mappings']
                 }
             )
             logger.info("Rollover of %s succeeded" % (alias))
 
 def getIndex(es, index):
     try:
-        es.indices.get(index=index)[index]
+        indices = es.indices.get(index=index)
+        for index in indices:
+            return indices[index]
     except NotFoundError:
         return None
 

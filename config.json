@@ -4,7 +4,7 @@
       "cluster1": {
          "address": "http://localhost:9200",
          "rollover_conditions": {
-            "max_age": "10m"
+            "max_age": "1m"
          },
          "indices_to_keep": 2,
          "exclude_aliases": ["assets", "logs"]
