@@ -49,11 +49,21 @@ def rolloverCluster(es, conditions, excludeAliases):
             logger.error("Index with name %s already exists. Check you rollover conditions or update naming" % (newIndex))
         else:
             logger.info("Performing rollover of %s to a new index %s" % (alias, newIndex))
-            rolloverIndices = curator.Rollover(es, alias, conditions, new_index=newIndex)
-            rolloverIndices.do_action()
+            es.indices.rollover(
+                alias=alias,
+                new_index=newIndex,
+                body={
+                    'conditions': conditions,
+                    'mappings': getIndex(alias)['mappings']
+                }
+            )
             logger.info("Rollover of %s succeeded" % (alias))
 
-
+def getIndex(es, index):
+    try:
+        es.indices.get(index=index)[index]
+    except NotFoundError:
+        return None
 
 def credentials(region):
     sts = boto3.client('sts', region)
