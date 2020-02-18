@@ -6,7 +6,7 @@ import logging
 import botocore.session
 from logging.config import fileConfig
 from curator.exceptions import NoIndices
-from elasticsearch import Elasticsearch, RequestsHttpConnection, NotFoundError
+from elasticsearch import Elasticsearch, RequestsHttpConnection, NotFoundError, TransportError
 from requests_aws4auth import AWS4Auth
 from datetime import datetime
 
@@ -135,15 +135,18 @@ def createSnapshots(es, repository, excludeAliases):
                             else:
                                 logger.debug(f"Snapshot {index} is in {snapshot['state']} state")
                     else:
-                        es.snapshot.create(
-                            repository=repository,
-                            snapshot=index,
-                            body={
-                                "indices": index,
-                                "include_global_state": False
-                            },
-                            wait_for_completion=False)
-                        logger.info(f"Created {index} snapshot")
+                        try:
+                            es.snapshot.create(
+                                repository=repository,
+                                snapshot=index,
+                                body={
+                                    "indices": index,
+                                    "include_global_state": False
+                                },
+                                wait_for_completion=False)
+                            logger.info(f"Created {index} snapshot")
+                        except TransportError:
+                            logger.warning(f"Snapshot for {index} is already in progress")
                 else:
                     logger.error(f"Repository {repository} is not found")
         else:
