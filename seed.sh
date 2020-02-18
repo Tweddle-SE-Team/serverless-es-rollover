@@ -14,7 +14,7 @@ function indices {
    for i in $(seq 1 $COUNT); do
       INDEX="$PREFIX-$(date -j -v-${i}m "+%Y%m%d")"
       echo $INDEX
-      request PUT $INDEX '{"mappings":{"_doc":{"properties":{"message":{"type":"keyword"}}}},"dynamic":false}'
+      request PUT $INDEX '{"mappings":{"_doc":{"dynamic":false,"properties":{"message":{"type":"keyword"}}}}}'
       if [ $i = 1 ]; then
          DATA=$(jq -n --arg index "$INDEX" --arg prefix "$PREFIX" '{actions:[{add:{index:$index,alias:$prefix}}]}')
          request POST _aliases "$DATA"

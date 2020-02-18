@@ -44,7 +44,7 @@ def getAllAliases(es, exclude=[]):
 def rolloverCluster(es, conditions, excludeAliases):
     suffix = datetime.now().strftime("%Y%m%d")
     for alias in getAllAliases(es, excludeAliases):
-        newIndex = f"{alias}-{suffix}-1"
+        newIndex = f"{alias}-{suffix}"
         if newIndex in curator.IndexList(es).indices:
             logger.error(f"Index with name {newIndex} already exists. Check you rollover conditions or update naming")
         else:
